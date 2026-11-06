@@ -1,0 +1,8 @@
+# Common experiment parameters. Phase-specific configs live in experiments/<phase>/config.yaml.
+
+seed: 42
+devices: configs/devices.yaml
+network: configs/network.example.yaml
+output_dir: results/
+repeats: 5                  # repeat each measurement for confidence intervals
+log_level: INFO

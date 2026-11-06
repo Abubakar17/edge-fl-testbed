@@ -1,0 +1,18 @@
+# Placeholder playbook for provisioning the boards.
+# Usage: ansible-playbook -i deploy/ansible/inventory.yaml deploy/ansible/provision.yml
+#
+# Planned steps:
+#   - base packages, time sync (chrony) so cross-device timestamps are comparable
+#   - Docker engine (or uv + Python 3.11 for bare-metal runs)
+#   - pull/load the edge-fl-testbed image for the right architecture
+#   - copy configs/ and set hostnames
+#   - optional: tc/netem for link emulation, power-meter tooling
+
+- name: Provision edge-fl-testbed devices
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Report architecture and memory
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }}: {{ ansible_architecture }}, {{ ansible_memtotal_mb }} MB RAM"

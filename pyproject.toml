@@ -1,0 +1,75 @@
+[project]
+name = "edge-fl-testbed"
+version = "0.1.0"
+description = "Federated learning testbed on heterogeneous edge hardware (x86_64 coordinator, arm64 clients)."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Syed Muhammad Abubakar" }]
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "numpy>=1.26",
+    "flwr>=1.10",
+    "torch>=2.3",
+    "grpcio>=1.62",
+    "pyyaml>=6.0",
+    "pydantic>=2.6",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.6",
+    "mypy>=1.10",
+    "pytest>=8.0",
+    "pre-commit>=3.7",
+    "types-pyyaml>=6.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/edge_fl"]
+
+# --- torch: CPU-only wheels -------------------------------------------------
+# PyPI torch for linux/x86_64 bundles CUDA; route all Linux builds (amd64 and
+# arm64, i.e. the Docker images and the boards) to the CPU-only index.
+# Windows/macOS PyPI wheels are already CPU-only.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+# --- ruff -------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "NPY", "RUF"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+# --- mypy (lenient for now; tighten as the code base grows) -----------------
+[tool.mypy]
+python_version = "3.11"
+files = ["src", "tests"]
+ignore_missing_imports = true
+warn_unused_configs = true
+warn_redundant_casts = true
+check_untyped_defs = false
+disallow_untyped_defs = false
+
+# --- pytest -----------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "hardware: requires the physical ODROID testbed (deselect with -m 'not hardware')",
+]

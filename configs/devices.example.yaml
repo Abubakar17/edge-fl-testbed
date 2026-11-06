@@ -1,0 +1,24 @@
+# Device inventory. Copy to configs/devices.yaml (git-ignored) and fill in real values.
+# Nothing about the hardware is hardcoded elsewhere: add/remove clients here.
+
+coordinator:
+  name: h3plus
+  arch: x86_64              # Intel N6005
+  host: 192.168.10.1        # TODO: confirm
+  port: 8080
+  ram_gb: 16                # TODO: confirm
+  interfaces: [eth0, eth1]  # 2x 2.5GbE
+
+clients:
+  - name: n2l-01
+    arch: aarch64
+    host: 192.168.10.11     # TODO: confirm
+    ram_gb: 4               # TODO: confirm (2 or 4)
+  - name: n2l-02
+    arch: aarch64
+    host: 192.168.10.12
+    ram_gb: 4
+  - name: n2l-03
+    arch: aarch64
+    host: 192.168.10.13
+    ram_gb: 2

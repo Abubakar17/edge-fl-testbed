@@ -1,0 +1,19 @@
+# Ansible inventory. Copy to inventory.yaml (git-ignored) and fill in real hosts.
+# Keep in sync with configs/devices.yaml.
+all:
+  vars:
+    ansible_user: odroid            # TODO: confirm
+    ansible_python_interpreter: /usr/bin/python3
+  children:
+    coordinator:
+      hosts:
+        h3plus:
+          ansible_host: 192.168.10.1
+    clients:
+      hosts:
+        n2l-01:
+          ansible_host: 192.168.10.11
+        n2l-02:
+          ansible_host: 192.168.10.12
+        n2l-03:
+          ansible_host: 192.168.10.13

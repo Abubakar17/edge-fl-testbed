@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.13.7"
+          enable-cache: true
+
+      - name: Install Python and locked dependencies
+        run: uv sync --locked
+
+      - name: Ruff (lint)
+        run: uv run --frozen ruff check --output-format=github .
+
+      - name: Ruff (format check)
+        run: uv run --frozen ruff format --check .
+
+      - name: Mypy
+        run: uv run --frozen mypy
+
+      - name: Pytest
+        run: uv run --frozen pytest -m "not hardware"

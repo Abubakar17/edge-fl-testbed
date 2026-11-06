@@ -1,0 +1,16 @@
+# Network setup and (optional) emulated link conditions.
+# Copy and edit per experiment; values are placeholders until the hardware is confirmed.
+
+topology: star              # star (server-client) | ring | complete | custom
+subnet: 192.168.10.0/24     # TODO: confirm
+link:
+  nominal_bandwidth_mbps: 1000   # TODO: depends on the switch / NICs
+  # Optional shaping with tc/netem on the boards (null = no shaping)
+  emulate:
+    delay_ms: null
+    jitter_ms: null
+    loss_pct: null
+    rate_mbps: null
+grpc:
+  max_message_mb: 64
+  compression: none         # none | gzip

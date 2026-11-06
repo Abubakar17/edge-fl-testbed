@@ -1,0 +1,17 @@
+# Phase 3: federated learning with Flower
+base: configs/experiment.example.yaml
+
+dataset:
+  name: TBD                 # small image/tabular dataset that fits on 2 GB boards
+  partition: dirichlet      # iid | dirichlet
+  dirichlet_alpha: 0.5
+model: TBD
+rounds: 50
+local_epochs: 1
+batch_size: 32
+learning_rate: 0.01
+strategies:
+  - fedavg
+  - {fedprox: {mu: 0.01}}
+  - {fedadmm: {rho: 0.1}}
+differentiator: TBD         # update_compression | energy_per_round

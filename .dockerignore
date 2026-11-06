@@ -1,0 +1,15 @@
+.git
+.github
+.venv
+**/__pycache__
+.pytest_cache
+.mypy_cache
+.ruff_cache
+data
+results
+docs
+tests
+experiments
+deploy/ansible
+.env
+.env.*

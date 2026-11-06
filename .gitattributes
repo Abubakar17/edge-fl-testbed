@@ -1,0 +1,4 @@
+# Normalize line endings: the code runs on Linux boards and in Linux containers.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.ps1 text eol=crlf

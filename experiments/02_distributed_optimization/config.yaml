@@ -1,0 +1,14 @@
+# Phase 2: distributed optimization (NumPy, from scratch)
+base: configs/experiment.example.yaml
+
+problem: logistic          # logistic | least_squares
+regularization_l2: 1.0e-3
+dataset:
+  name: synthetic          # synthetic | <real dataset, TBD>
+  n_samples: 10000
+  n_features: 50
+  partition: iid           # iid | non_iid
+methods:
+  centralized: {max_iter: 1000, tol: 1.0e-8}
+  admm: {rho: 1.0, max_iter: 200}
+  dgd: {step_size: 0.01, max_iter: 2000, topology: ring}

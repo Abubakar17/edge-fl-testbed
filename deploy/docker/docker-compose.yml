@@ -1,0 +1,43 @@
+# Local simulation: 1 coordinator + 3 clients on a single machine.
+# Run from the repo root: `make sim` (or docker compose -f deploy/docker/docker-compose.yml up --build)
+
+x-client: &client
+  image: edge-fl-testbed:local
+  command: ["python", "-m", "edge_fl.fl.client"]
+  depends_on: [server]
+  networks: [fl]
+  volumes:
+    - ../../data:/app/data:ro
+    - ../../results:/app/results
+  # Rough stand-in for an ODROID-N2L; tune to match the real boards.
+  cpus: 1.0
+  mem_limit: 2g
+
+services:
+  server:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    image: edge-fl-testbed:local
+    command: ["python", "-m", "edge_fl.fl.server"]
+    environment:
+      EDGE_FL_SERVER_ADDRESS: "0.0.0.0:8080"
+    networks: [fl]
+    volumes:
+      - ../../results:/app/results
+
+  client-1:
+    <<: *client
+    environment: { EDGE_FL_CLIENT_ID: "1", EDGE_FL_SERVER_ADDRESS: "server:8080" }
+
+  client-2:
+    <<: *client
+    environment: { EDGE_FL_CLIENT_ID: "2", EDGE_FL_SERVER_ADDRESS: "server:8080" }
+
+  client-3:
+    <<: *client
+    environment: { EDGE_FL_CLIENT_ID: "3", EDGE_FL_SERVER_ADDRESS: "server:8080" }
+
+networks:
+  fl:
+    driver: bridge

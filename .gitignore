@@ -11,6 +11,7 @@ dist/
 .coverage
 htmlcov/
 .ipynb_checkpoints/
+graphify-out/
 
 # Environment / secrets
 .env

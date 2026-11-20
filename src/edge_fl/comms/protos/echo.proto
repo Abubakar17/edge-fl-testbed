@@ -1,0 +1,19 @@
+// Echo service for Phase 1: the server sends every message straight back, so a client
+// can time full round trips and measure what gRPC adds on top of the raw network.
+//
+// Regenerate the Python code after editing this file:  make protos
+
+syntax = "proto3";
+
+package edge_fl.comms;
+
+// One message in either direction.
+message Payload {
+  bytes data = 1;   // the bytes being echoed; its size is what the benchmark varies
+  uint64 seq = 2;   // request number, so the client can check the reply matches
+}
+
+service Echo {
+  // Unary call: one request, one reply. The server returns the request unchanged.
+  rpc Echo(Payload) returns (Payload);
+}

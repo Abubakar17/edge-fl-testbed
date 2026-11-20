@@ -1,7 +1,8 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup lint format test sim sim-down clean
+.PHONY: help setup lint format test protos sim sim-down clean
 
 COMPOSE := docker compose -f deploy/docker/docker-compose.yml
+PROTOS := $(wildcard src/edge_fl/comms/protos/*.proto)
 
 help: ## List available targets
 	@uv run --frozen python -c "import re; [print(f'  {m[0]:<10} {m[1]}') for m in re.findall(r'^([a-z-]+):.*?## (.*)$$', open('Makefile').read(), re.M)]"
@@ -21,6 +22,9 @@ format: ## Auto-fix lint issues and format code
 
 test: ## Run the test suite
 	uv run --frozen pytest
+
+protos: ## Regenerate Python code from the .proto files (commit the result)
+	uv run --frozen python -m grpc_tools.protoc -I src --python_out=src --pyi_out=src --grpc_python_out=src $(PROTOS)
 
 sim: ## Run the local docker-compose simulation (1 server + 3 clients)
 	$(COMPOSE) up --build --abort-on-container-exit

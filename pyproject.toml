@@ -23,6 +23,10 @@ dev = [
     "pytest>=8.0",
     "pre-commit>=3.7",
     "types-pyyaml>=6.0",
+    # Generates Python code from .proto files (make protos). Capped: grpcio-tools >=1.85
+    # needs protobuf 7, but flwr needs protobuf <7. Generated code from an older
+    # grpcio-tools runs fine on the newer grpcio runtime.
+    "grpcio-tools>=1.81,<1.82",
 ]
 
 [build-system]
@@ -49,6 +53,9 @@ explicit = true
 line-length = 100
 target-version = "py311"
 src = ["src", "tests"]
+# Generated gRPC/protobuf code: never edited by hand, so never linted.
+extend-exclude = ["*_pb2.py", "*_pb2.pyi", "*_pb2_grpc.py"]
+force-exclude = true   # also skip them when pre-commit passes files explicitly
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "NPY", "RUF"]
@@ -59,7 +66,9 @@ quote-style = "double"
 # --- mypy (lenient for now; tighten as the code base grows) -----------------
 [tool.mypy]
 python_version = "3.11"
+plugins = ["pydantic.mypy"]   # lets mypy understand pydantic models (defaults, validation)
 files = ["src", "tests"]
+exclude = ['_pb2(_grpc)?\.py$']   # generated code; the .pyi stubs still give types
 ignore_missing_imports = true
 warn_unused_configs = true
 warn_redundant_casts = true

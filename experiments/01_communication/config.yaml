@@ -1,11 +1,24 @@
-# Phase 1: gRPC communication benchmarks
-base: configs/experiment.example.yaml
+# Phase 1: gRPC echo benchmark (python -m edge_fl.comms.benchmark --config <this file>)
+# Every key is optional (defaults in src/edge_fl/comms/benchmark.py); unknown keys are an error,
+# so a typo can't be silently ignored.
 
-benchmarks:
-  - ping_pong          # round-trip latency
-  - throughput         # sustained bandwidth
-  - payload_cost       # serialization + transfer cost vs. payload size
-payload_sizes_kb: [1, 10, 100, 1000, 10000]
-concurrent_clients: [1, 2, 3]
-messages_per_run: 1000
-warmup_messages: 50
+# Echo server to measure against. Usually overridden on the command line with --target.
+target: 192.168.50.1:50051
+
+# Must be >= the largest payload; the server must use the same or a larger limit.
+max_message_mb: 64
+
+# Payload sizes, 1 KB to 50 MB, roughly x4 per step (even spacing on a log-scale plot).
+payload_sizes_kb: [1, 4, 16, 64, 256, 1024, 4096, 16384, 51200]
+
+# Untimed calls per size before measuring (connection/buffer warm-up).
+warmup: 20
+
+# Timed calls per size = bytes_budget_mb / size, clamped to [repeats_min, repeats_max].
+# 1 KB -> 500 calls, 1 MB -> 500, 16 MB -> 31, 50 MB -> 10. Whole sweep: a few minutes.
+repeats_min: 10
+repeats_max: 500
+bytes_budget_mb: 500
+
+# Where run folders are written (results/ is git-ignored).
+output_dir: results/01_communication

@@ -2,18 +2,18 @@
 # Keep in sync with configs/devices.yaml.
 all:
   vars:
-    ansible_user: odroid            # TODO: confirm
+    ansible_user: odroid
     ansible_python_interpreter: /usr/bin/python3
   children:
     coordinator:
       hosts:
         h3plus:
-          ansible_host: 192.168.10.1
+          ansible_host: 192.168.50.1
     clients:
       hosts:
         n2l-01:
-          ansible_host: 192.168.10.11
+          ansible_host: 192.168.50.2
         n2l-02:
-          ansible_host: 192.168.10.12
+          ansible_host: 192.168.50.3
         n2l-03:
-          ansible_host: 192.168.10.13
+          ansible_host: 192.168.50.4

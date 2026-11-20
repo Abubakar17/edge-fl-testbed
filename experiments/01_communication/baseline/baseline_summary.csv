@@ -1,0 +1,10 @@
+test,link,rounds,median,unit,spread,extra
+ping RTT,h3 <-> laptop,3,0.734,ms,0.712-0.736,"jitter(mdev) 0.098 ms, loss 0%"
+ping RTT,h3 <-> n2l,3,0.483,ms,0.473-0.483,"jitter(mdev) 0.051 ms, loss 0%"
+ping RTT,n2l <-> laptop,3,0.714,ms,0.703-0.771,"jitter(mdev) 0.178 ms, loss 0%"
+iperf3 TCP,h3 -> laptop,3,94.9,Mbit/s,94.86-94.89,retransmits 0
+iperf3 TCP,h3 -> n2l,3,335.3,Mbit/s,335.27-335.28,retransmits 1
+iperf3 TCP,laptop -> h3,3,94.8,Mbit/s,94.78-94.81,
+iperf3 TCP,laptop -> n2l,3,94.8,Mbit/s,94.75-94.79,
+iperf3 TCP,n2l -> h3,3,293.9,Mbit/s,293.90-293.92,retransmits 0
+iperf3 TCP,n2l -> laptop,3,94.9,Mbit/s,94.87-94.89,retransmits 0

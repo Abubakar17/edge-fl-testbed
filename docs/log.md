@@ -4,6 +4,108 @@ A dated journal of decisions, measurements and problems. Newest entries go at th
 
 ---
 
+## 2026-11-13 (later): NAT persistence, n2l-1 software, baseline measurements
+
+**NAT now starts automatically at boot (C-07).**
+- `/etc/sysctl.d/99-testbed-nat.conf` sets `ip_forward=1`.
+- `/usr/local/sbin/testbed-nat.sh` adds the three NAT and forwarding rules. It checks first, so it never adds duplicates.
+- `testbed-nat.service` runs the script at boot, after Docker.
+- I didn't use `iptables-persistent`, because it would also save and restore Docker's own rules and create duplicates.
+
+**n2l-1 software (C-08).**
+- Set the hostname to `n2l-1`, including the `127.0.1.1` line in `/etc/hosts`.
+- Switched off conda's automatic base environment, which clashes with uv.
+- Installed git, make, curl, iperf3, Docker and uv, and cloned the repo.
+- `make test` passes, the project's first run on arm64.
+- `lsusb -t` confirms the Ethernet adapter (driver r8152) runs at USB 2.0 speed, 480M.
+
+**Baseline measurements (P1-00).**
+- iperf3 servers ran on both boards, and the laptop was always the client, using `-R` for the reverse direction so no firewall change was needed.
+- Pings always ran from a Linux board.
+- 3 rounds: 100 pings, or a 30 s single-stream TCP test, per round.
+- `experiments/01_communication/summarize_baseline.py` reduces the files to medians in `baseline_summary.csv`.
+
+| Test | Link | Median | Spread (3 rounds) | Notes |
+|---|---|---|---|---|
+| ping RTT | H3+ ↔ N2L | 0.483 ms | 0.473-0.483 | std dev 0.051 ms, 0% loss |
+| ping RTT | H3+ ↔ laptop | 0.734 ms | 0.712-0.736 | std dev 0.098 ms, 0% loss |
+| ping RTT | N2L ↔ laptop | 0.714 ms | 0.703-0.771 | std dev 0.178 ms, 0% loss, one 3.7 ms outlier |
+| iperf3 | H3+ → N2L | 335.3 Mbit/s | 335.27-335.28 | 1 retransmit |
+| iperf3 | N2L → H3+ | 293.9 Mbit/s | 293.90-293.92 | 0 retransmits |
+| iperf3 | H3+ → laptop | 94.9 Mbit/s | 94.86-94.89 | 0 retransmits |
+| iperf3 | laptop → H3+ | 94.8 Mbit/s | 94.78-94.81 | Windows sender doesn't report retransmits |
+| iperf3 | laptop → N2L | 94.8 Mbit/s | 94.75-94.79 | |
+| iperf3 | N2L → laptop | 94.9 Mbit/s | 94.87-94.89 | 0 retransmits |
+
+**Findings**
+- **The laptop's Ethernet port is Fast Ethernet** ("Realtek PCIe FE Family Controller", 100 Mbps
+  in `Get-NetAdapter`). That is a hardware limit, not the cable or the switch. 94.8 Mbit/s is
+  the most TCP can carry over 100 Mbit/s, so every laptop figure measures the laptop's port.
+  The ~940 Mbit/s expected for laptop ↔ H3+ isn't reachable. **The laptop controls runs but
+  isn't a measurement node.** A USB 3.0 gigabit adapter would fix it if it's ever needed.
+- **H3+ ↔ N2L runs at 294 to 335 Mbit/s,** consistent with the USB 2.0 adapter (480M bus).
+  The adapter is not 100 Mbit/s, because it's well above 94. The N2L's adapter is the
+  bottleneck; the switch and the H3+ have headroom.
+- **Sending is the N2L's weak direction,** about 12% slower than receiving (294 vs 335). The
+  extra CPU and USB work of transmitting costs more. In FL, a client uploading its update
+  will be slower than downloading the model.
+- **Latency is sub-millisecond with no loss, and very repeatable** (the spread between rounds
+  is under 1%). The laptop paths add about 0.25 ms, mostly Windows' network stack.
+- **The floor for Phase 1:** gRPC is judged against about 0.48 ms per round trip and about
+  294 Mbit/s of N2L upload. Even on the raw link, 10 MB takes at least 0.27 s from an N2L.
+
+**Next:** Phase 1 gRPC echo benchmark between the boards.
+- Payloads from 1 KB to 50 MB, with round trips timed on the client.
+- Raise gRPC's 4 MB message limit, or use streaming.
+- Run Docker with `--network host`.
+
+## 2026-11-13: Testbed network and first N2L
+
+**Layout.** The H3+, the laptop and N2L #1 are connected through a TP-Link 16-port gigabit
+switch on `192.168.50.0/24`:
+
+| Device | Address |
+|---|---|
+| H3+ | `.1` on `enp2s0` |
+| Laptop | `.100`, no gateway, so internet stays on Wi-Fi |
+| N2L #1 | `.2`, on a USB 2.0 Ethernet adapter |
+
+The H3+'s other port, `enp1s0`, takes the lab cable by DHCP. The full procedure is in
+[`setup.md`](setup.md).
+
+**Problems and fixes**
+- *Ping from the H3+ returned "Destination Host Unreachable".* The address was on the
+  unplugged port. Moved it to the profile bound to `enp2s0`.
+- *The laptop didn't answer ping.* Windows Firewall blocks it. Added an inbound ICMPv4 echo rule.
+- *H3+ internet broke.* The switch profile carried a stray gateway with a better route
+  metric. Removed the gateway and set `never-default`.
+- *Internet tests failed.* The lab network blocks ping, so internet is now tested with `curl -I`.
+- *N2L internet.* The H3+ now shares its lab connection through NAT. The FORWARD rules
+  are inserted at position 1 because Docker drops forwarded traffic by default.
+- *N2L TLS errors ("certificate not yet valid").* The N2L has no clock battery. Fixed with
+  chrony: the H3+ serves time, and the N2Ls are its clients.
+- *The H3+ Wi-Fi is unusable.* Its login page never appears.
+
+**Decisions**
+- N2L Ethernet adapters go in the **USB 2.0** port, because Hardkernel says USB 3.0 Ethernet
+  adapters are unreliable on the N2L. That caps N2L links at about 250 to 320 Mbit/s, so
+  they are expected to be the throughput bottleneck.
+- Round-trip times are measured on one node only, because clocks agree to just 0.1 to 1 ms.
+
+**To do**
+- Make the NAT rules and `ip_forward` on the H3+ persistent.
+- Give N2L #1 its unique hostname.
+- Install Docker and uv on N2L #1.
+- Baseline `ping` and `iperf3` for every pair of devices.
+
+**Questions for Giulio**
+- Was the old `172.16.1.x` address on the H3+ part of a planned addressing scheme?
+- Should the USB 3.0 Ethernet adapters in the hardware order be changed?
+- FL topology: centralized first and then decentralized, or decentralized only?
+
+The board is now referred to as the H3+. The 2026-11-06 entry said it reported as an H3,
+so check `lscpu`: an N6005 CPU means H3+, an N5105 means H3.
+
 ## 2026-11-06: Coordinator (ODROID-H3) bring-up
 
 - The board reports as an x86 ODROID-H3 (not H3+): 4 cores, 8 GB RAM, 500 GB NVMe, Ubuntu MATE 22.04. Switched the system language from Italian to English.

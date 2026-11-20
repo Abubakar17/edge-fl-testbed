@@ -2,9 +2,9 @@
 # Copy and edit per experiment; values are placeholders until the hardware is confirmed.
 
 topology: star              # star (server-client) | ring | complete | custom
-subnet: 192.168.10.0/24     # TODO: confirm
+subnet: 192.168.50.0/24     # testbed switch (TP-Link 16-port, unmanaged gigabit)
 link:
-  nominal_bandwidth_mbps: 1000   # TODO: depends on the switch / NICs
+  nominal_bandwidth_mbps: 1000   # switch; N2L USB 2.0 adapters cap at ~250-320
   # Optional shaping with tc/netem on the boards (null = no shaping)
   emulate:
     delay_ms: null

@@ -4,6 +4,43 @@ A dated journal of decisions, measurements and problems. Newest entries go at th
 
 ---
 
+## 2026-11-20 (evening): upload and download measured separately
+
+**Runs.** `--modes upload download` with the H3+ as server (n2l-1 as client), then with
+n2l-1 as server (H3+ as client). Each data-flow direction is therefore measured twice,
+once with each board as client.
+
+| Size | H3+ → N2L (N2L downloads) | H3+ → N2L (H3+ uploads) | N2L → H3+ (H3+ downloads) | N2L → H3+ (N2L uploads) |
+|---|---|---|---|---|
+| 1 KB | 1.71 ms | 3.68 ms | 3.72 ms | 1.74 ms |
+| 1 MB | 29.7 ms (282 Mbit/s) | 36.7 ms (229) | 33.8 ms (248) | 37.3 ms (225) |
+| 4 MB | 112 ms (300) | 133 ms (252) | 128 ms (262) | 133 ms (253) |
+| 50 MB | 1.46 s (287) | 1.45 s (289) | 1.56 s (268) | 1.61 s (261) |
+
+**Findings**
+- **For large messages, direction matters and client role doesn't.** At 50 MB the two measurements of
+  each direction agree to within 1% (H3+ → N2L: 287 against 289 Mbit/s) and 3% (N2L → H3+: 268 against 261).
+  - Data flows **H3+ → N2L at about 288 Mbit/s** (86% of iperf3's 335).
+  - Data flows **N2L → H3+ at about 265 Mbit/s** (90% of iperf3's 294).
+  - The N2L sends about 8% slower than it receives, the same direction as iperf3's 12%.
+- **For small messages, role matters and direction doesn't.** A 1 KB call costs about 1.7 ms whenever the H3+
+  is the server, and about 3.7 ms whenever the N2L is the server, whichever way the data goes. This matches
+  the echo finding (N2L as server: 3.5 ms). The N2L's per-call cost as a server dominates small messages.
+- **The N2L-as-server cost *falls* as messages grow:** H3+ uploads take 3.68 ms at 1 KB but 3.23 ms at 64 KB.
+  The echo runs show the same (3.50 → 3.31 ms from 1 to 16 KB). A bigger message should never be faster.
+  - Hypothesis, not yet tested: CPU frequency scaling on the N2L. Between small requests it idles and
+    clocks down, and larger payloads keep it busy enough to clock up.
+  - Test: set the `performance` governor on n2l-1 and repeat the small sizes.
+  - Relevant to Phase 2 and decentralized FL, which send many small messages to N2L servers.
+- **Consistency:** upload + download equals echo + one α. The gap is +1.6 to 2 ms with the N2L as client and
+  +3.9 to 4.7 ms with the N2L as server; at 50 MB it is only +1.6 to 3.2%.
+- **FL estimate for a 4 MB model on an N2L client:** download 112 ms + upload 133 ms ≈ 245 ms of
+  communication per round, with the upload about 19% slower than the download at that size.
+
+**Caveat:** the fitted one-way bandwidths differ from the measured 50 MB plateau by up to 5%,
+because one α can't describe a small-message cost that depends on the server. Quote the
+plateau values for bandwidth.
+
 ## 2026-11-20 (later): Phase 1 results on the boards, and analysis
 
 **Runs.** Each scenario got a `--quick` check, then a full sweep:

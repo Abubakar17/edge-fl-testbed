@@ -119,6 +119,22 @@ the summary script are in [`experiments/01_communication/baseline/`](experiments
 - **The laptop is capped at 100 Mbit/s by its Fast Ethernet port** (Realtek PCIe FE), so it controls runs but doesn't take part in measurements.
 - These figures set the floor for the gRPC benchmark: about 0.48 ms per round trip, and about 0.3 s minimum to send 10 MB from an N2L.
 
+### Phase 1: gRPC between H3+ and N2L
+
+Echo (round trip), upload and download from 1 KB to 50 MB, timed on the client. The code,
+run instructions and analysis are in [`experiments/01_communication/`](experiments/01_communication/).
+
+| | 1 KB call | 4 MB | 50 MB | Bandwidth at 50 MB |
+|---|---|---|---|---|
+| Echo, N2L client | 1.82 ms | 237 ms | 2.97 s | 282 Mbit/s (≈90% of raw TCP) |
+| Download to N2L (H3+ → N2L) | 1.71 ms | 112 ms | 1.46 s | 287 Mbit/s (86% of iperf3) |
+| Upload from N2L (N2L → H3+) | 1.74 ms | 133 ms | 1.61 s | 261 Mbit/s (89% of iperf3) |
+
+- **Large messages** reach 86–90% of raw TCP. The N2L sends about 8% slower than it receives.
+- **Small messages** are set by CPU, not the network. A 1 KB call costs about 1.7 ms with the H3+ as server, but about 3.7 ms with an N2L as server, whichever way the data goes. Decentralized FL needs every N2L to be a server, so this matters there.
+- **Latency–bandwidth model** for an echo, N2L client: *time ≈ 1.7 ms + 2 × size ÷ 285 Mbit/s*, within 4% from 1 KB to 50 MB.
+- **FL estimate:** with a 4 MB model, an N2L client spends about 245 ms per round on communication.
+
 Results from later phases will be added as each phase is completed.
 
 ## License

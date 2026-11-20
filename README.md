@@ -17,8 +17,8 @@ Project work (6 CFU), University of Genoa. Supervisor: Prof. Giulio Ferro.
 
 - [x] **Phase 0: Setup.** Repository scaffold and coordinator bring-up. The ODROID-H3 runs the test suite and the Docker simulation. The N2L clients are tracked separately (next line).
 - [ ] **Client bring-up (in parallel with Phase 1).** Testbed switch and network are up. N2L #1 (`n2l-1`) is online, gets internet and time from the H3+, and passes `make test` on arm64. Still to do: more boards (Ansible) and the multi-arch image.
-- [ ] **Phase 1: Communication.** Devices exchange messages over gRPC. Measure latency, bandwidth and payload cost.
-- [ ] **Phase 2: Distributed optimization.** Logistic and least-squares regression with ADMM and decentralized GD in NumPy, compared with a centralized baseline.
+- [x] **Phase 1: Communication.** gRPC echo, upload and download benchmark between the boards, 1 KB to 50 MB, compared against the raw network, with a fitted latency–bandwidth model ([results](#results)). Still open: the concurrency test (waits for more N2Ls) and an optional CPU-governor test.
+- [ ] **Phase 2: Distributed optimization.** ADMM and decentralized GD written from scratch in NumPy, compared with a centralized baseline. Waiting for the optimization problem from the supervisor; synthetic least squares or logistic regression is the fallback.
 - [ ] **Phase 3: Federated learning.** Flower with FedAvg, FedProx and FedADMM on non-IID data, plus update compression or per-round energy measurement.
 
 ## Hardware

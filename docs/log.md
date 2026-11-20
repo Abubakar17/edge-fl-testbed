@@ -4,6 +4,38 @@ A dated journal of decisions, measurements and problems. Newest entries go at th
 
 ---
 
+## 2026-11-20: Phase 1 closed, handover to Phase 2
+
+**Working now**
+- **Testbed:** H3+ and n2l-1 on a dedicated switch (`192.168.50.0/24`). The H3+ provides NAT
+  and time sync, and NAT survives reboots. Both boards run the project (`make test` passes on
+  x86_64 and arm64). Setup is in `docs/setup.md`.
+- **gRPC layer:** `src/edge_fl/comms/` holds an Echo/Upload/Download server and client. Any node
+  can serve, which keeps decentralized setups open, and the message limit is 64 MB.
+- **Benchmark and analysis:** `benchmark.py` runs size sweeps with warmup and automatic repeat
+  counts, and writes raw samples plus metadata. `analysis.py` and `analyze_echo.py` compute the
+  raw-link floor and the latency–bandwidth model, and produce 5 figures and summary tables.
+  21 tests pass.
+
+**Phase 1 results** (detail in the entries below and in the README)
+- Large messages reach 86–90% of raw TCP: about 288 Mbit/s to the N2L, about 265 from it.
+- Small messages are set by the CPU, not the network: about 1.7 ms per call with the H3+ as
+  server, about 3.7 ms with an N2L as server.
+- Echo model (N2L client): 1.7 ms + 2·size / 285 Mbit/s.
+
+**Left open in Phase 1**
+- Concurrency (P1-07) waits for more N2Ls.
+- An optional test of the CPU governor (P1-10), for the case where a bigger message is faster.
+
+**Phase 2: next steps**
+1. Get the optimization problem from Giulio (Q-09). Requirements are in
+   `experiments/02_distributed_optimization/README.md`.
+2. Write the centralized baseline, then data partitioning, then consensus ADMM, then
+   decentralized gradient descent. Simulate first in a single process, then run over gRPC on
+   the boards.
+3. Estimate the communication cost per iteration from the Phase 1 model. With small vectors
+   it is about α per message, so the number of rounds dominates.
+
 ## 2026-11-20 (evening): upload and download measured separately
 
 **Runs.** `--modes upload download` with the H3+ as server (n2l-1 as client), then with

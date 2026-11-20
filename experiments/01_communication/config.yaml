@@ -8,6 +8,10 @@ target: 192.168.50.1:50051
 # Must be >= the largest payload; the server must use the same or a larger limit.
 max_message_mb: 64
 
+# What to measure: echo (round trip), upload (client -> server), download (server -> client).
+# Override with --modes, e.g. --modes upload download
+modes: [echo, upload, download]
+
 # Payload sizes, 1 KB to 50 MB, roughly x4 per step (even spacing on a log-scale plot).
 payload_sizes_kb: [1, 4, 16, 64, 256, 1024, 4096, 16384, 51200]
 

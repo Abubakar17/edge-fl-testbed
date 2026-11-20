@@ -28,6 +28,13 @@ def test_fit_recovers_known_model() -> None:
     assert bw == pytest.approx(300.0, rel=1e-6)
 
 
+def test_fit_one_way() -> None:
+    sizes = np.array([1, 64, 1024, 51200]) * 1024
+    true = predict_ms(sizes, alpha_ms=1.0, bandwidth_mbit_s=294.0, crossings=1)
+    alpha, bw = fit_latency_bandwidth(sizes, true, crossings=1)
+    assert alpha == pytest.approx(1.0, rel=1e-6) and bw == pytest.approx(294.0, rel=1e-6)
+
+
 def test_floor_is_ping_plus_transfer_both_ways() -> None:
     base = Baseline(
         ping_ms={frozenset(("a", "b")): 0.5},
@@ -51,13 +58,29 @@ def test_size_stats_groups_by_size() -> None:
     assert st.count.tolist() == [2, 1]
 
 
-def _fake_run(root: Path, name: str, client: str, label: str, sizes: list[int]) -> None:
+def _fake_run(
+    root: Path, name: str, client: str, label: str, sizes: list[int],
+    raw_files: tuple[str, ...] = ("rtt_raw.csv",),
+) -> None:  # fmt: skip
     d = root / name
     d.mkdir()
     (d / "meta.json").write_text(json.dumps({"client_host": client, "label": label}))
     (d / "summary.csv").write_text("size_bytes\n")
     lines = ["size_bytes,seq,rtt_ns"] + [f"{s},1,1000000" for s in sizes]
-    (d / "rtt_raw.csv").write_text("\n".join(lines) + "\n")
+    for raw_file in raw_files:
+        (d / raw_file).write_text("\n".join(lines) + "\n")
+
+
+def test_selection_per_mode(tmp_path: Path) -> None:
+    # an older echo-only run and a newer upload/download-only run of the same pair
+    _fake_run(tmp_path, "2026-01-01_100000_n2l-1_to_h3plus", "n2l-1", "h3plus", [1, 2])
+    _fake_run(
+        tmp_path, "2026-01-02_100000_n2l-1_to_h3plus", "n2l-1", "h3plus", [1, 2],
+        raw_files=("upload_raw.csv", "download_raw.csv"),
+    )  # fmt: skip
+    runs = find_runs(tmp_path)
+    assert latest_full_runs(runs, "echo")[("n2l-1", "h3plus")].path.name.startswith("2026-01-01")
+    assert latest_full_runs(runs, "upload")[("n2l-1", "h3plus")].path.name.startswith("2026-01-02")
 
 
 def test_selection_prefers_full_sweep_and_skips_empty(tmp_path: Path) -> None:

@@ -1,7 +1,7 @@
-"""gRPC echo server: returns every message unchanged.
+"""gRPC benchmark server: Echo, Upload and Download (see protos/echo.proto).
 
-It does no work on the data, so a client timing round trips measures only transport:
-serialization, HTTP/2 framing, TCP, the network, and the same on the way back.
+It does no work on the data, so a client timing the calls measures only transport:
+serialization, HTTP/2 framing, TCP and the network.
 
 Any node can run it (not only the coordinator), which keeps decentralized setups open.
 
@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 from concurrent import futures
 
 import grpc
@@ -23,14 +24,32 @@ log = logging.getLogger(__name__)
 
 
 class EchoServicer(echo_pb2_grpc.EchoServicer):
-    """Implements the ``Echo`` service from echo.proto."""
+    """Implements the service in echo.proto. Method names are capitalised because the
+    .proto fixes them."""
 
-    def Echo(  # capitalised because the name is fixed by the .proto
-        self, request: echo_pb2.Payload, context: grpc.ServicerContext
-    ) -> echo_pb2.Payload:
+    def __init__(self) -> None:
+        # Download payload cache: (size, bytes). Generating 50 MB of random bytes takes
+        # time, so it happens once per size (on the client's untimed warm-up calls), never
+        # inside a timed call. One entry is enough: the benchmark goes size by size.
+        self._download_cache: tuple[int, bytes] = (0, b"")
+
+    def Echo(self, request: echo_pb2.Payload, context: grpc.ServicerContext) -> echo_pb2.Payload:
         # Return the request object itself: no copy and no processing, so the server
         # adds as little time as possible to the measured round trip.
         return request
+
+    def Upload(self, request: echo_pb2.Payload, context: grpc.ServicerContext) -> echo_pb2.Ack:
+        # The payload has already been received and decoded by gRPC; reply with a tiny
+        # receipt so the client can verify nothing was lost.
+        return echo_pb2.Ack(seq=request.seq, received_bytes=len(request.data))
+
+    def Download(
+        self, request: echo_pb2.SizeRequest, context: grpc.ServicerContext
+    ) -> echo_pb2.Payload:
+        size = request.size_bytes
+        if self._download_cache[0] != size:
+            self._download_cache = (size, os.urandom(size))  # random: incompressible
+        return echo_pb2.Payload(data=self._download_cache[1], seq=request.seq)
 
 
 def start_server(

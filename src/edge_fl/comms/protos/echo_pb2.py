@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1f\x65\x64ge_fl/comms/protos/echo.proto\x12\redge_fl.comms\"$\n\x07Payload\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\x12\x0b\n\x03seq\x18\x02 \x01(\x04\x32>\n\x04\x45\x63ho\x12\x36\n\x04\x45\x63ho\x12\x16.edge_fl.comms.Payload\x1a\x16.edge_fl.comms.Payloadb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1f\x65\x64ge_fl/comms/protos/echo.proto\x12\redge_fl.comms\"$\n\x07Payload\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\x12\x0b\n\x03seq\x18\x02 \x01(\x04\"*\n\x03\x41\x63k\x12\x0b\n\x03seq\x18\x01 \x01(\x04\x12\x16\n\x0ereceived_bytes\x18\x02 \x01(\x04\".\n\x0bSizeRequest\x12\x0b\n\x03seq\x18\x01 \x01(\x04\x12\x12\n\nsize_bytes\x18\x02 \x01(\x04\x32\xb4\x01\n\x04\x45\x63ho\x12\x36\n\x04\x45\x63ho\x12\x16.edge_fl.comms.Payload\x1a\x16.edge_fl.comms.Payload\x12\x34\n\x06Upload\x12\x16.edge_fl.comms.Payload\x1a\x12.edge_fl.comms.Ack\x12>\n\x08\x44ownload\x12\x1a.edge_fl.comms.SizeRequest\x1a\x16.edge_fl.comms.Payloadb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,6 +33,10 @@ if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_PAYLOAD']._serialized_start=50
   _globals['_PAYLOAD']._serialized_end=86
-  _globals['_ECHO']._serialized_start=88
-  _globals['_ECHO']._serialized_end=150
+  _globals['_ACK']._serialized_start=88
+  _globals['_ACK']._serialized_end=130
+  _globals['_SIZEREQUEST']._serialized_start=132
+  _globals['_SIZEREQUEST']._serialized_end=178
+  _globals['_ECHO']._serialized_start=181
+  _globals['_ECHO']._serialized_end=361
 # @@protoc_insertion_point(module_scope)

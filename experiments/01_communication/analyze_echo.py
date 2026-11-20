@@ -14,6 +14,7 @@ Writes to results/01_communication/analysis/:
     fig2_throughput.png         echo throughput per payload size, with the iperf3 reference
     fig3_time_breakdown.png     share of each round trip that is network vs software
     fig4_model_fit.png          fitted latency-bandwidth model for the board-to-board runs
+    fig5_upload_download.png    one-way throughput per direction (needs upload/download runs)
     phase1_summary.md / .csv    the numbers behind the figures
 """
 
@@ -23,8 +24,10 @@ import argparse
 import csv
 import io
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 import matplotlib
 
@@ -34,6 +37,7 @@ import numpy as np
 
 from edge_fl.comms.analysis import (
     Baseline,
+    Run,
     SizeStats,
     find_runs,
     fit_latency_bandwidth,
@@ -58,6 +62,18 @@ MARKERS = ["o", "s", "^", "D", "v", "P", "X", "*"]
 
 SURFACE, INK, INK_2, GRID, FLOOR = "#fcfcfb", "#0b0b0b", "#52514e", "#e6e5e0", "#52514e"
 
+# Upload/download figure: colour = which way the data physically flows (sender, receiver).
+# Palette slots 7 and 8, so they never look like the four scenario colours above.
+FLOW_COLORS = {("n2l", "h3"): "#e34948", ("h3", "n2l"): "#6250d6"}
+
+
+class Labeled(Protocol):
+    """Anything that can be drawn as a labelled line."""
+
+    name: str
+    color: str
+    stats: SizeStats
+
 
 @dataclass
 class Scenario:
@@ -79,14 +95,56 @@ class Scenario:
         return f"{DISPLAY.get(self.client, self.client)} → {DISPLAY.get(self.server, self.server)}"
 
 
+@dataclass
+class OneWay:
+    """One-way measurement: who sent the data, who received it, and who ran the client."""
+
+    sender: str
+    receiver: str
+    client: str
+    mode: str  # "upload" (client sends) or "download" (client receives)
+    run_dir: Path
+    stats: SizeStats
+
+    @property
+    def name(self) -> str:
+        verb = "uploads" if self.mode == "upload" else "downloads"
+        flow = (
+            f"{DISPLAY.get(self.sender, self.sender)} → {DISPLAY.get(self.receiver, self.receiver)}"
+        )
+        return f"{flow} ({DISPLAY.get(self.client, self.client)} {verb})"
+
+    @property
+    def color(self) -> str:
+        return FLOW_COLORS.get((self.sender, self.receiver), FLOOR)
+
+
 # --------------------------------------------------------------------------- data
-def build_scenarios(run_dirs: list[Path] | None, root: Path) -> list[Scenario]:
+def select_runs(run_dirs: list[Path] | None, root: Path, mode: str) -> dict[tuple[str, str], Run]:
+    """Runs to use for ``mode``, keyed by (client, server) node names."""
     if run_dirs:
         loaded = [load_run(d) for d in run_dirs]
-        runs = {(r.client, r.label): r for r in loaded if r is not None}
+        runs = {(r.client, r.label): r for r in loaded if r is not None and mode in r.raws}
     else:
-        runs = latest_full_runs(find_runs(root))
-    by_pair = {(NODE.get(c, c), NODE.get(lbl, lbl)): r for (c, lbl), r in runs.items()}
+        runs = latest_full_runs(find_runs(root), mode)
+    return {(NODE.get(c, c), NODE.get(lbl, lbl)): r for (c, lbl), r in runs.items()}
+
+
+def build_oneway(run_dirs: list[Path] | None, root: Path) -> list[OneWay]:
+    """Board-to-board upload/download measurements, ordered by data-flow direction."""
+    out = []
+    for mode in ("upload", "download"):
+        for (client, server), run in select_runs(run_dirs, root, mode).items():
+            if client == server:
+                continue  # loopback: no direction to speak of
+            sender, receiver = (client, server) if mode == "upload" else (server, client)
+            stats = size_stats(run.raws[mode], crossings=1)
+            out.append(OneWay(sender, receiver, client, mode, run.path, stats))
+    return sorted(out, key=lambda o: (o.sender, o.mode))
+
+
+def build_scenarios(run_dirs: list[Path] | None, root: Path) -> list[Scenario]:
+    by_pair = select_runs(run_dirs, root, "echo")
     pairs = [p for p in ORDER if p in by_pair] + sorted(p for p in by_pair if p not in ORDER)
     return [
         Scenario(
@@ -144,7 +202,7 @@ def size_axis(ax: plt.Axes, sizes: np.ndarray) -> None:
 
 def label_line_ends(
     ax: plt.Axes,
-    scen: list[Scenario],
+    scen: Sequence[Labeled],
     values: list[np.ndarray],
     side: str = "left",
     min_gap_frac: float = 0.05,
@@ -321,9 +379,92 @@ def fig_model(scen: list[Scenario], fits: dict[str, tuple[float, float]], out: P
     plt.close(fig)
 
 
+def fig_oneway(oneway: list[OneWay], base: Baseline | None, out: Path) -> None:
+    """One-way throughput. Colour = direction the data flows; solid = the sender ran the
+    client (upload), dashed = the receiver ran the client (download). Two lines of the
+    same colour measure the same direction with the client role swapped, so they should
+    agree; the dotted line is iperf3's raw TCP rate for that direction."""
+    fig, ax = plt.subplots(figsize=(8, 5))
+    for ow in oneway:
+        upload = ow.mode == "upload"
+        ax.plot(
+            ow.stats.size_bytes,
+            ow.stats.throughput_mbit_s,
+            color=ow.color,
+            ls="-" if upload else "--",
+            marker="o" if upload else "s",
+            markeredgecolor=SURFACE,
+            markeredgewidth=1.5,
+            label=ow.name,
+        )
+    if base:
+        for (sender, receiver), color in FLOW_COLORS.items():
+            rate = base.iperf_mbit_s.get((sender, receiver))
+            if rate:
+                flow = f"{DISPLAY[sender]} → {DISPLAY[receiver]}"
+                ax.axhline(rate, color=color, ls=":", lw=1.5, label=f"iperf3 {flow} ({rate:.0f})")
+    size_axis(ax, oneway[0].stats.size_bytes)
+    ax.set_yscale("log")
+    ax.set_ylabel("Throughput (Mbit/s, log scale)")
+    ax.set_title("One-way throughput: upload vs download (payload ÷ median time)")
+    top = max(float(ow.stats.throughput_mbit_s.max()) for ow in oneway)
+    ax.set_ylim(None, top * 2.5)  # headroom so lines, iperf3 lines and labels don't crowd
+    ax.set_xlim(None, oneway[0].stats.size_bytes[-1] * 8)  # room for the direct labels
+    # Same-colour lines measure the same direction and should overlap, so label each
+    # *direction* once (on its upload line); the legend explains solid vs dashed.
+    flows = {(ow.sender, ow.receiver): ow for ow in oneway if ow.mode == "upload"}
+    labels = [
+        Scenario(s, r, ow.run_dir, ow.stats, ow.color, "o") for (s, r), ow in flows.items()
+    ]  # Scenario's name is "A → B", exactly the direction label wanted here
+    label_line_ends(ax, labels, [lb.stats.throughput_mbit_s for lb in labels], side="right")
+    ax.legend(loc="lower right")
+    fig.tight_layout()
+    fig.savefig(out, dpi=200)
+    plt.close(fig)
+
+
 # --------------------------------------------------------------------------- tables
+def oneway_markdown(
+    oneway: list[OneWay], fits1: dict[str, tuple[float, float]], base: Baseline | None
+) -> list[str]:
+    """Markdown section for the upload/download measurements."""
+    md = [
+        "",
+        "## One-way: upload and download",
+        "",
+        "Median time in ms (throughput in Mbit/s). Name = data flow (who ran the client).",
+        "",
+        "| Size | " + " | ".join(ow.name for ow in oneway) + " |",
+        "|---" * (len(oneway) + 1) + "|",
+    ]
+    for i, size in enumerate(oneway[0].stats.size_bytes):
+        cells = [
+            f"{ow.stats.median_ms[i]:.3f} ({ow.stats.throughput_mbit_s[i]:.0f})" for ow in oneway
+        ]
+        md.append(f"| {size_label(size)} | " + " | ".join(cells) + " |")
+    md += [
+        "",
+        "One-way model, `time = α + size / bandwidth`, against iperf3 for the same direction:",
+        "",
+        "| Measurement | α (ms) | Bandwidth (Mbit/s) | iperf3 (Mbit/s) | gRPC / iperf3 |",
+        "|---|---|---|---|---|",
+    ]
+    for ow in oneway:
+        alpha, bw = fits1[ow.name]
+        ref = base.iperf_mbit_s.get((ow.sender, ow.receiver)) if base else None
+        ratio = f"{100 * bw / ref:.0f}%" if ref else "-"
+        md.append(f"| {ow.name} | {alpha:.2f} | {bw:.1f} | {ref or '-'} | {ratio} |")
+    md += ["", "Runs used:", ""] + [f"- {ow.name}: `{ow.run_dir.name}`" for ow in oneway]
+    return md
+
+
 def write_tables(
-    scen: list[Scenario], base: Baseline | None, fits: dict[str, tuple[float, float]], out_dir: Path
+    scen: list[Scenario],
+    base: Baseline | None,
+    fits: dict[str, tuple[float, float]],
+    out_dir: Path,
+    oneway: list[OneWay] | None = None,
+    fits1: dict[str, tuple[float, float]] | None = None,
 ) -> None:
     rows = []
     for sc in scen:
@@ -376,6 +517,8 @@ def write_tables(
         ]
         md += [f"| {name} | {a:.2f} | {bw:.1f} |" for name, (a, bw) in fits.items()]
     md += ["", "Runs used:", ""] + [f"- {sc.name}: `{sc.run_dir.name}`" for sc in scen]
+    if oneway and fits1:
+        md += oneway_markdown(oneway, fits1, base)
     (out_dir / "phase1_summary.md").write_text("\n".join(md) + "\n", encoding="utf-8")
 
 
@@ -410,12 +553,25 @@ def main(argv: list[str] | None = None) -> None:
         fig_breakdown(scen, base, out / "fig3_time_breakdown.png")
     if fits:
         fig_model(scen, fits, out / "fig4_model_fit.png")
-    write_tables(scen, base, fits, out)
+
+    # Upload/download, if any runs measured them (older runs are echo only).
+    oneway = build_oneway(args.runs, args.results)
+    fits1 = {
+        ow.name: fit_latency_bandwidth(ow.stats.size_bytes, ow.stats.median_ms, crossings=1)
+        for ow in oneway
+    }
+    if oneway:
+        fig_oneway(oneway, base, out / "fig5_upload_download.png")
+    write_tables(scen, base, fits, out, oneway, fits1)
 
     for sc in scen:
         print(f"{sc.name:<16} {sc.run_dir.name}")
     for name, (a, bw) in fits.items():
         print(f"model {name}: alpha {a:.2f} ms, bandwidth {bw:.1f} Mbit/s")
+    for name, (a, bw) in fits1.items():
+        print(f"one-way {name}: alpha {a:.2f} ms, bandwidth {bw:.1f} Mbit/s")
+    if not oneway:
+        print("no upload/download runs yet: figure 5 skipped")
     print(f"saved figures and tables to {out}")
 
 

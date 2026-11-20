@@ -51,6 +51,18 @@ class EchoClient:
         """Send ``data`` and return the server's reply (which should be identical)."""
         return self._stub.Echo(echo_pb2.Payload(data=data, seq=seq), timeout=timeout_s)
 
+    def upload(self, data: bytes, seq: int = 0, timeout_s: float | None = 60.0) -> echo_pb2.Ack:
+        """Send ``data`` one way; the server replies with a small receipt (``Ack``)."""
+        return self._stub.Upload(echo_pb2.Payload(data=data, seq=seq), timeout=timeout_s)
+
+    def download(
+        self, size_bytes: int, seq: int = 0, timeout_s: float | None = 60.0
+    ) -> echo_pb2.Payload:
+        """Ask the server for ``size_bytes`` bytes and return them."""
+        return self._stub.Download(
+            echo_pb2.SizeRequest(size_bytes=size_bytes, seq=seq), timeout=timeout_s
+        )
+
     def close(self) -> None:
         self._channel.close()
 

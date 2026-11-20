@@ -39,14 +39,35 @@ class EchoStub:
                 request_serializer=edge__fl_dot_comms_dot_protos_dot_echo__pb2.Payload.SerializeToString,
                 response_deserializer=edge__fl_dot_comms_dot_protos_dot_echo__pb2.Payload.FromString,
                 _registered_method=True)
+        self.Upload = channel.unary_unary(
+                '/edge_fl.comms.Echo/Upload',
+                request_serializer=edge__fl_dot_comms_dot_protos_dot_echo__pb2.Payload.SerializeToString,
+                response_deserializer=edge__fl_dot_comms_dot_protos_dot_echo__pb2.Ack.FromString,
+                _registered_method=True)
+        self.Download = channel.unary_unary(
+                '/edge_fl.comms.Echo/Download',
+                request_serializer=edge__fl_dot_comms_dot_protos_dot_echo__pb2.SizeRequest.SerializeToString,
+                response_deserializer=edge__fl_dot_comms_dot_protos_dot_echo__pb2.Payload.FromString,
+                _registered_method=True)
 
 
 class EchoServicer:
     """Missing associated documentation comment in .proto file."""
 
     def Echo(self, request, context):
-        """Unary call: one request, one reply. The server returns the request unchanged.
-        """
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Upload(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Download(self, request, context):
+        """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -57,6 +78,16 @@ def add_EchoServicer_to_server(servicer, server):
             'Echo': grpc.unary_unary_rpc_method_handler(
                     servicer.Echo,
                     request_deserializer=edge__fl_dot_comms_dot_protos_dot_echo__pb2.Payload.FromString,
+                    response_serializer=edge__fl_dot_comms_dot_protos_dot_echo__pb2.Payload.SerializeToString,
+            ),
+            'Upload': grpc.unary_unary_rpc_method_handler(
+                    servicer.Upload,
+                    request_deserializer=edge__fl_dot_comms_dot_protos_dot_echo__pb2.Payload.FromString,
+                    response_serializer=edge__fl_dot_comms_dot_protos_dot_echo__pb2.Ack.SerializeToString,
+            ),
+            'Download': grpc.unary_unary_rpc_method_handler(
+                    servicer.Download,
+                    request_deserializer=edge__fl_dot_comms_dot_protos_dot_echo__pb2.SizeRequest.FromString,
                     response_serializer=edge__fl_dot_comms_dot_protos_dot_echo__pb2.Payload.SerializeToString,
             ),
     }
@@ -86,6 +117,60 @@ class Echo:
             target,
             '/edge_fl.comms.Echo/Echo',
             edge__fl_dot_comms_dot_protos_dot_echo__pb2.Payload.SerializeToString,
+            edge__fl_dot_comms_dot_protos_dot_echo__pb2.Payload.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Upload(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/edge_fl.comms.Echo/Upload',
+            edge__fl_dot_comms_dot_protos_dot_echo__pb2.Payload.SerializeToString,
+            edge__fl_dot_comms_dot_protos_dot_echo__pb2.Ack.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Download(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/edge_fl.comms.Echo/Download',
+            edge__fl_dot_comms_dot_protos_dot_echo__pb2.SizeRequest.SerializeToString,
             edge__fl_dot_comms_dot_protos_dot_echo__pb2.Payload.FromString,
             options,
             channel_credentials,

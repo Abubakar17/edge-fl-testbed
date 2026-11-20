@@ -36,9 +36,11 @@ def test_summary_statistics() -> None:
     assert stats["std_ms"] == pytest.approx(1.0)
 
 
-def test_throughput_counts_both_directions() -> None:
-    # 1 MB each way in 80 ms -> 2 * 8_388_608 bits / 0.08 s = 209.7 Mbit/s
+def test_throughput_counts_network_crossings() -> None:
+    # echo: 1 MB each way in 80 ms -> 2 * 8_388_608 bits / 0.08 s = 209.7 Mbit/s
     assert throughput_mbit_s(MB, 80.0) == pytest.approx(209.7152)
+    # upload/download: 1 MB one way in 80 ms -> half that
+    assert throughput_mbit_s(MB, 80.0, crossings=1) == pytest.approx(104.8576)
 
 
 def test_repo_config_is_valid() -> None:
@@ -71,15 +73,35 @@ def test_end_to_end_run_writes_all_outputs(server_target: str, tmp_path: Path) -
 
     with (run_dir / "summary.csv").open(encoding="utf-8") as fh:
         summary = list(csv.DictReader(fh))
-    assert [int(r["size_kb"]) for r in summary] == [1, 64]
+    # one row per (size, mode), all three modes by default
+    assert [(r["size_kb"], r["mode"]) for r in summary] == [
+        ("1", "echo"), ("1", "upload"), ("1", "download"),
+        ("64", "echo"), ("64", "upload"), ("64", "download"),
+    ]  # fmt: skip
     assert all(float(r["median_ms"]) > 0 for r in summary)
 
-    with (run_dir / "rtt_raw.csv").open(encoding="utf-8") as fh:
-        assert sum(1 for _ in fh) == 1 + 5 + 5  # header + 5 samples per size
+    for raw_file in ("rtt_raw.csv", "upload_raw.csv", "download_raw.csv"):
+        with (run_dir / raw_file).open(encoding="utf-8") as fh:
+            assert sum(1 for _ in fh) == 1 + 5 + 5  # header + 5 samples per size
 
     assert (run_dir / "serialization.csv").exists()
     meta = json.loads((run_dir / "meta.json").read_text(encoding="utf-8"))
     assert meta["label"] == "loopback" and meta["config"]["warmup"] == 2
+
+
+def test_modes_subset_writes_only_those_files(server_target: str, tmp_path: Path) -> None:
+    cfg = BenchmarkConfig(
+        target=server_target,
+        modes=["upload", "download"],
+        payload_sizes_kb=[1],
+        warmup=1,
+        repeats_min=2,
+        repeats_max=2,
+        output_dir=str(tmp_path),
+    )
+    run_dir = run(cfg, label="loopback")
+    assert not (run_dir / "rtt_raw.csv").exists()
+    assert (run_dir / "upload_raw.csv").exists() and (run_dir / "download_raw.csv").exists()
 
 
 def test_unreachable_server_leaves_no_empty_folder(tmp_path: Path) -> None:

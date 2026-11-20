@@ -32,6 +32,22 @@ def test_payload_above_default_4mb_limit(server_target: str) -> None:
     assert len(reply.data) == len(data)
 
 
+def test_upload_returns_receipt(server_target: str) -> None:
+    with EchoClient(server_target) as client:
+        ack = client.upload(bytes(5 * MB), seq=3)
+    assert ack.seq == 3 and ack.received_bytes == 5 * MB
+
+
+def test_download_returns_requested_size(server_target: str) -> None:
+    with EchoClient(server_target) as client:
+        first = client.download(5 * MB, seq=1)
+        second = client.download(5 * MB, seq=2)  # served from the server's cache
+        small = client.download(10, seq=3)  # new size replaces the cache entry
+    assert len(first.data) == 5 * MB and first.seq == 1
+    assert second.data == first.data and second.seq == 2
+    assert len(small.data) == 10
+
+
 def test_unreachable_server_fails_fast() -> None:
     with pytest.raises(ConnectionError):
         EchoClient("127.0.0.1:1", connect_timeout_s=0.5)

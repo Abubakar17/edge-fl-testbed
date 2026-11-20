@@ -27,6 +27,7 @@ dev = [
     # needs protobuf 7, but flwr needs protobuf <7. Generated code from an older
     # grpcio-tools runs fine on the newer grpcio runtime.
     "grpcio-tools>=1.81,<1.82",
+    "matplotlib>=3.11.2",
 ]
 
 [build-system]
@@ -59,6 +60,8 @@ force-exclude = true   # also skip them when pre-commit passes files explicitly
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "NPY", "RUF"]
+# Typographic characters used on purpose in figure labels and reports.
+allowed-confusables = ["×", "–", "α", "→", "↔", "·"]
 
 [tool.ruff.format]
 quote-style = "double"

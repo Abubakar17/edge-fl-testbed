@@ -30,6 +30,7 @@ import socket
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import TextIO
 
 import google.protobuf
 import grpc
@@ -59,6 +60,7 @@ class BenchmarkConfig(BaseModel):
     repeats_min: int = Field(10, ge=1)
     repeats_max: int = Field(500, ge=1)
     bytes_budget_mb: int = Field(500, ge=1)
+    connect_timeout_s: float = Field(10.0, gt=0)  # give up if the server isn't up by then
     output_dir: str = "results/01_communication"
 
 
@@ -165,72 +167,14 @@ def run(cfg: BenchmarkConfig, label: str) -> Path:
     meta = run_metadata(cfg, label)
     stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
     run_dir = Path(cfg.output_dir) / f"{stamp}_{meta['client_host']}_to_{label}"
-    run_dir.mkdir(parents=True, exist_ok=True)
-
-    summary_rows: list[dict[str, object]] = []
-    serial_rows: list[dict[str, object]] = []
-    raw_path = run_dir / "rtt_raw.csv"
-    seq = 1
 
     print(f"echo benchmark: {meta['client_host']} -> {cfg.target} ({label})")
-    with (
-        EchoClient(cfg.target, cfg.max_message_mb) as client,
-        raw_path.open("w", newline="", encoding="utf-8") as raw_fh,
-    ):
-        raw = csv.writer(raw_fh, lineterminator="\n")
-        raw.writerow(["size_bytes", "seq", "rtt_ns"])
-
-        for size_kb in cfg.payload_sizes_kb:
-            size = size_kb * KB
-            data = os.urandom(size)  # random: incompressible, unlike zeros
-
-            # 1) correctness, untimed: the full payload must come back byte for byte
-            if client.echo(data, seq=0).data != data:
-                raise RuntimeError(f"echoed content differs at {size_kb} KB")
-
-            # 2) warm-up, discarded
-            time_echo(client, data, cfg.warmup, seq_start=seq)
-            seq += cfg.warmup
-
-            # 3) timed round trips, with the garbage collector paused so it can't
-            #    inject pauses that have nothing to do with the network
-            n = repeats_for(size, cfg)
-            gc.collect()
-            gc.disable()
-            try:
-                samples = time_echo(client, data, n, seq_start=seq)
-            finally:
-                gc.enable()
-            raw.writerows([size, seq + i, s] for i, s in enumerate(samples))
-            seq += n
-
-            stats = summarize_ns(samples)
-            mbit = throughput_mbit_s(size, stats["median_ms"])
-            summary_rows.append(
-                {
-                    "size_bytes": size,
-                    "size_kb": size_kb,
-                    "repeats": n,
-                    **stats,
-                    "throughput_mbit_s": mbit,
-                }
-            )
-
-            # 4) serialization only, on this machine
-            encode_ns, decode_ns = time_serialization(data, n)
-            serial_rows.append(
-                {
-                    "size_bytes": size,
-                    "size_kb": size_kb,
-                    "repeats": n,
-                    "encode_median_ms": summarize_ns(encode_ns)["median_ms"],
-                    "decode_median_ms": summarize_ns(decode_ns)["median_ms"],
-                }
-            )
-            print(
-                f"  {size_kb:>6} KB  n={n:<4} RTT median {stats['median_ms']:9.3f} ms"
-                f"  p95 {stats['p95_ms']:9.3f} ms  {mbit:8.1f} Mbit/s"
-            )
+    # Connect *before* creating the run folder: if the server isn't reachable,
+    # EchoClient raises here and no empty folder is left behind.
+    with EchoClient(cfg.target, cfg.max_message_mb, cfg.connect_timeout_s) as client:
+        run_dir.mkdir(parents=True, exist_ok=True)
+        with (run_dir / "rtt_raw.csv").open("w", newline="", encoding="utf-8") as raw_fh:
+            summary_rows, serial_rows = sweep(cfg, client, raw_fh)
 
     meta["finished"] = datetime.now().astimezone().isoformat(timespec="seconds")
     (run_dir / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
@@ -238,6 +182,71 @@ def run(cfg: BenchmarkConfig, label: str) -> Path:
     write_csv(run_dir / "serialization.csv", serial_rows)
     print(f"saved {run_dir}")
     return run_dir
+
+
+def sweep(
+    cfg: BenchmarkConfig, client: EchoClient, raw_fh: TextIO
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    """Measure every payload size. Writes each sample to ``raw_fh``; returns the
+    per-size summary rows and serialization rows."""
+    summary_rows: list[dict[str, object]] = []
+    serial_rows: list[dict[str, object]] = []
+    raw = csv.writer(raw_fh, lineterminator="\n")
+    raw.writerow(["size_bytes", "seq", "rtt_ns"])
+    seq = 1
+
+    for size_kb in cfg.payload_sizes_kb:
+        size = size_kb * KB
+        data = os.urandom(size)  # random: incompressible, unlike zeros
+
+        # 1) correctness, untimed: the full payload must come back byte for byte
+        if client.echo(data, seq=0).data != data:
+            raise RuntimeError(f"echoed content differs at {size_kb} KB")
+
+        # 2) warm-up, discarded
+        time_echo(client, data, cfg.warmup, seq_start=seq)
+        seq += cfg.warmup
+
+        # 3) timed round trips, with the garbage collector paused so it can't
+        #    inject pauses that have nothing to do with the network
+        n = repeats_for(size, cfg)
+        gc.collect()
+        gc.disable()
+        try:
+            samples = time_echo(client, data, n, seq_start=seq)
+        finally:
+            gc.enable()
+        raw.writerows([size, seq + i, s] for i, s in enumerate(samples))
+        seq += n
+
+        stats = summarize_ns(samples)
+        mbit = throughput_mbit_s(size, stats["median_ms"])
+        summary_rows.append(
+            {
+                "size_bytes": size,
+                "size_kb": size_kb,
+                "repeats": n,
+                **stats,
+                "throughput_mbit_s": mbit,
+            }
+        )
+
+        # 4) serialization only, on this machine
+        encode_ns, decode_ns = time_serialization(data, n)
+        serial_rows.append(
+            {
+                "size_bytes": size,
+                "size_kb": size_kb,
+                "repeats": n,
+                "encode_median_ms": summarize_ns(encode_ns)["median_ms"],
+                "decode_median_ms": summarize_ns(decode_ns)["median_ms"],
+            }
+        )
+        print(
+            f"  {size_kb:>6} KB  n={n:<4} RTT median {stats['median_ms']:9.3f} ms"
+            f"  p95 {stats['p95_ms']:9.3f} ms  {mbit:8.1f} Mbit/s"
+        )
+    return summary_rows, serial_rows
 
 
 def main(argv: list[str] | None = None) -> None:

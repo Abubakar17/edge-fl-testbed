@@ -4,6 +4,56 @@ A dated journal of decisions, measurements and problems. Newest entries go at th
 
 ---
 
+## 2026-11-20 (later): Phase 1 results on the boards, and analysis
+
+**Runs.** Each scenario got a `--quick` check, then a full sweep:
+- H3+ loopback
+- N2L loopback
+- N2L → H3+
+- H3+ → N2L
+
+The loopback runs used the board's own testbed IP; Linux routes that internally, so it is
+still loopback. The run folders were collected to the laptop with `scp`.
+
+| Size | H3+ loopback | N2L loopback | N2L → H3+ | H3+ → N2L |
+|---|---|---|---|---|
+| 1 KB | 0.38 ms | 3.10 ms | 1.82 ms | 3.50 ms |
+| 64 KB | 0.62 ms | 4.10 ms | 5.33 ms | 5.65 ms |
+| 1 MB | 4.1 ms | 14.5 ms | 62 ms (269 Mbit/s) | 60 ms (281 Mbit/s) |
+| 50 MB | 381 ms | 381 ms | 2.97 s (282 Mbit/s) | 2.96 s (283 Mbit/s) |
+
+**Findings**
+- **Large messages reach about 90% of raw TCP.** Throughput levels off at about 283 Mbit/s in both
+  directions. The echo-equivalent iperf3 rate (harmonic mean of 294 and 335) is 313 Mbit/s.
+  At 50 MB the raw-link floor is 2.68 s against 2.97 s measured.
+- **For small messages, the N2L's CPU costs more than the network.** The network is only 15 to 29% of a
+  1 KB round trip. The N2L loopback takes 3.1 ms against 0.38 ms on the H3+, so the N2L is about 8× slower.
+- **Being the server costs the N2L about twice as much as being the client:** 3.5 ms against 1.8 ms for 1 KB.
+  The likely cause is the Python gRPC server handing each request to a worker thread (inferred, not measured).
+  This matters for decentralized FL, where every node is a server.
+- **Latency-bandwidth model** (relative least squares):
+  - N2L → H3+: 1.71 ms + 2·size / 285 Mbit/s, within 4% at every size.
+  - H3+ → N2L: 2.91 ms + 2·size / 300 Mbit/s, within 15%.
+  - The crossover from CPU-bound to link-bound is around 64 to 256 KB.
+- **Stability:** board-to-board runs vary by 1 to 2% at 1 MB, and no sample exceeds 3× the median. The H3+
+  is the noisy node (desktop session, Docker, NAT and chrony share it).
+
+**Caveats**
+- An echo can't separate upload from download.
+- Serialization times above 16 MB mostly measure memory allocation, and vary 2 to 3× between H3+ runs.
+- The largest sizes have only 10 to 31 samples.
+
+**Code**
+- `run()` now connects before creating the run folder, so a failed start leaves no empty folder.
+  There's a regression test and a `connect_timeout_s` setting.
+- Analysis is split in two:
+  - `src/edge_fl/comms/analysis.py`: numpy only, tested. Run selection, raw-link floor, model fit.
+  - `experiments/01_communication/analyze_echo.py`: 4 figures and summary tables written to
+    `results/01_communication/analysis/`.
+- The figures were checked visually for overlapping labels.
+
+**Next:** `Upload` and `Download` calls, to measure each direction separately (what FL actually does).
+
 ## 2026-11-20: Phase 1 gRPC echo benchmark (code)
 
 **Contract and generated code.**

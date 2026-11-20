@@ -28,6 +28,7 @@ uv run python -m edge_fl.comms.server --port 50051
 # On the client node (e.g. n2l-1), first a quick check (a few seconds):
 uv run python -m edge_fl.comms.benchmark --config experiments/01_communication/config.yaml \
     --target 192.168.50.1:50051 --label h3plus --quick
+
 # then the full sweep (1 KB to 50 MB, a few minutes):
 uv run python -m edge_fl.comms.benchmark --config experiments/01_communication/config.yaml \
     --target 192.168.50.1:50051 --label h3plus

@@ -80,3 +80,10 @@ def test_end_to_end_run_writes_all_outputs(server_target: str, tmp_path: Path) -
     assert (run_dir / "serialization.csv").exists()
     meta = json.loads((run_dir / "meta.json").read_text(encoding="utf-8"))
     assert meta["label"] == "loopback" and meta["config"]["warmup"] == 2
+
+
+def test_unreachable_server_leaves_no_empty_folder(tmp_path: Path) -> None:
+    cfg = BenchmarkConfig(target="127.0.0.1:1", connect_timeout_s=0.5, output_dir=str(tmp_path))
+    with pytest.raises(ConnectionError):
+        run(cfg, label="nobody")
+    assert list(tmp_path.iterdir()) == []  # regression test for the empty-folder bug
